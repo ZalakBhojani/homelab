@@ -1,0 +1,79 @@
+---
+- name: Enable TPM2 auto-unlock for the LUKS root volume
+  hosts: homelab
+  become: true
+  serial: 1
+  vars:
+    # PCR 7 = Secure Boot state. Survives kernel/package updates; a firmware
+    # update or Secure Boot toggle invalidates it (passphrase fallback, then re-enroll).
+    tpm2_pcrs: "7"
+    reboot_after: false
+  vars_prompt:
+    - name: luks_passphrase
+      prompt: "Existing LUKS passphrase (authorizes the TPM enrollment)"
+      private: true
+
+  tasks:
+    - name: Read the root LUKS entry from /etc/crypttab
+      ansible.builtin.shell: |
+        set -o pipefail
+        awk '$1 !~ /^#/ && NF >= 4 { print $1, $2, $3, $4; exit }' /etc/crypttab
+      args:
+        executable: /bin/bash
+      register: crypttab_entry
+      changed_when: false
+      failed_when: crypttab_entry.stdout | trim | length == 0
+
+    - name: Parse crypttab fields
+      ansible.builtin.set_fact:
+        ct_name: "{{ crypttab_entry.stdout.split()[0] }}"
+        ct_src: "{{ crypttab_entry.stdout.split()[1] }}"
+        ct_key: "{{ crypttab_entry.stdout.split()[2] }}"
+        ct_opts: "{{ crypttab_entry.stdout.split()[3] }}"
+
+    - name: Resolve LUKS device path
+      ansible.builtin.set_fact:
+        luks_device: "{{ '/dev/disk/by-uuid/' ~ ct_src.split('=')[1] if ct_src.startswith('UUID=') else ct_src }}"
+
+    - name: Check whether a TPM2 token is already enrolled
+      ansible.builtin.command: cryptsetup luksDump {{ luks_device }}
+      register: luks_dump
+      changed_when: false
+
+    - name: Enroll TPM2 into a LUKS keyslot (keeps the passphrase slot as fallback)
+      ansible.builtin.command: >
+        systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs={{ tpm2_pcrs }} {{ luks_device }}
+      environment:
+        PASSWORD: "{{ luks_passphrase }}"
+      when: "'systemd-tpm2' not in luks_dump.stdout"
+      no_log: true
+
+    - name: Add tpm2-device=auto to the crypttab options
+      ansible.builtin.lineinfile:
+        path: /etc/crypttab
+        regexp: '^{{ ct_name }}\s'
+        line: "{{ ct_name }} {{ ct_src }} {{ ct_key }} {{ ct_opts if 'tpm2-device' in ct_opts else ct_opts ~ ',tpm2-device=auto' }}"
+        backup: true
+      notify: Rebuild initramfs
+
+    - name: Ensure dracut includes the tpm2-tss module
+      ansible.builtin.copy:
+        dest: /etc/dracut.conf.d/tpm2.conf
+        content: |
+          add_dracutmodules+=" tpm2-tss "
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Rebuild initramfs
+
+    - name: Rebuild initramfs now, before any reboot
+      ansible.builtin.meta: flush_handlers
+
+    - name: Reboot to verify TPM unlock (only with -e reboot_after=true)
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+      when: reboot_after | bool
+
+  handlers:
+    - name: Rebuild initramfs
+      ansible.builtin.command: dracut -f

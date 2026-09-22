@@ -1,0 +1,39 @@
+---
+- name: Expand the root LV inside the LUKS-backed VG
+  hosts: homelab
+  become: true
+  vars:
+    vg_name: ubuntu-vg
+    lv_name: ubuntu-lv
+    # Passed straight to LVM. Examples:
+    #   +50%FREE  add half of the VG's remaining free space (default)
+    #   80%VG     grow the LV to 80% of the whole VG (absolute target, idempotent)
+    #   +50G      add 50 GiB
+    lv_size: "+50%FREE"
+
+  tasks:
+    - name: Show VG usage before
+      ansible.builtin.command: vgs --units g -o vg_name,vg_size,vg_free --noheadings {{ vg_name }}
+      register: vg_before
+      changed_when: false
+
+    - name: Report free space
+      ansible.builtin.debug:
+        msg: "{{ vg_before.stdout | trim }}"
+
+    - name: Extend {{ lv_name }} and grow the filesystem online
+      community.general.lvol:
+        vg: "{{ vg_name }}"
+        lv: "{{ lv_name }}"
+        size: "{{ lv_size }}"
+        resizefs: true
+        shrink: false
+
+    - name: Show resulting root filesystem size
+      ansible.builtin.command: df -h /
+      register: df_root
+      changed_when: false
+
+    - name: Report new size
+      ansible.builtin.debug:
+        msg: "{{ df_root.stdout_lines }}"

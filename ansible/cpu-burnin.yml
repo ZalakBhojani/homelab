@@ -1,0 +1,167 @@
+---
+- name: CPU burn-in — verified stress-ng load test with temperature monitoring
+  hosts: homelab
+  vars:
+    # Minutes of full-load soak. 10 finds fan/cooling failures; use 30+ to
+    # also catch degraded thermal paste (temps that creep instead of plateau).
+    burnin_minutes: 10
+    burnin_seconds: "{{ burnin_minutes | int * 60 }}"
+    # One stress worker per core by default.
+    cpu_workers: "{{ ansible_facts['processor_vcpus'] }}"
+    # Per-run results on this machine: results/<timestamp>/<host>/
+    results_root: "{{ playbook_dir }}/results"
+    run_stamp: "{{ hostvars[ansible_play_hosts_all | first].burnin_stamp }}"
+    host_results: "{{ results_root }}/{{ run_stamp }}/{{ inventory_hostname }}"
+
+  pre_tasks:
+    - name: Stamp this run (one timestamp shared by every host)
+      ansible.builtin.set_fact:
+        burnin_stamp: "{{ '%Y%m%d-%H%M%S' | strftime }}"
+      run_once: true
+
+  tasks:
+    - name: Install stress-ng and lm-sensors
+      become: true
+      ansible.builtin.apt:
+        name:
+          - stress-ng
+          - lm-sensors
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      tags: setup
+
+    - name: Load the Dell fan/temp sensor module (best effort — not whitelisted on every model)
+      become: true
+      ansible.builtin.command: modprobe dell_smm_hwmon force=1
+      when: ansible_facts['system_vendor'] == 'Dell Inc.'
+      register: dell_smm
+      failed_when: false
+      changed_when: dell_smm.rc == 0
+      tags: setup
+
+    - name: Record idle baseline temperatures
+      ansible.builtin.command: sensors
+      register: baseline
+      changed_when: false
+
+    - name: Read core throttle counter (before)
+      ansible.builtin.shell: |
+        set -o pipefail
+        cat /sys/devices/system/cpu/cpu*/thermal_throttle/core_throttle_count \
+          | awk '{ s += $1 } END { print s + 0 }'
+      args:
+        executable: /bin/bash
+      register: throttle_before
+      changed_when: false
+
+    - name: Deploy temperature sampler script
+      ansible.builtin.copy:
+        dest: /tmp/burnin-sampler.sh
+        mode: "0755"
+        content: |
+          #!/bin/bash
+          # $1 = max seconds to run (guard rail); normally stopped by the playbook.
+          end=$(( $(date +%s) + ${1:-900} ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            echo "=== $(date -Is) ==="
+            sensors
+            sleep 2
+          done
+
+    - name: Start temperature sampler in the background (2s interval)
+      ansible.builtin.shell: /tmp/burnin-sampler.sh {{ burnin_seconds | int + 300 }} > /tmp/burnin-sensors.log 2>&1
+      async: "{{ burnin_seconds | int + 360 }}"
+      poll: 0
+      register: sampler_job
+      changed_when: true
+
+    - name: Run stress-ng — sits here for the full soak, detached on the host
+      ansible.builtin.command: >
+        stress-ng --cpu {{ cpu_workers }} --cpu-method all --verify
+        --timeout {{ burnin_minutes }}m --metrics-brief
+      async: "{{ burnin_seconds | int + 120 }}"
+      poll: 20
+      register: stress_out
+      changed_when: true
+
+    - name: Stop temperature sampler
+      ansible.builtin.command: pkill -f burnin-sampler.sh
+      register: pkill_out
+      failed_when: pkill_out.rc not in [0, 1]   # 1 = already exited
+      changed_when: pkill_out.rc == 0
+
+    - name: Read core throttle counter (after)
+      ansible.builtin.shell: |
+        set -o pipefail
+        cat /sys/devices/system/cpu/cpu*/thermal_throttle/core_throttle_count \
+          | awk '{ s += $1 } END { print s + 0 }'
+      args:
+        executable: /bin/bash
+      register: throttle_after
+      changed_when: false
+
+    - name: Fetch sensor log
+      ansible.builtin.fetch:
+        src: /tmp/burnin-sensors.log
+        dest: "{{ host_results }}/sensors.log"
+        flat: true
+
+    - name: Save stress-ng output locally
+      ansible.builtin.copy:
+        content: "{{ stress_out.stdout }}\n"
+        dest: "{{ host_results }}/stress.log"
+        mode: "0644"
+      delegate_to: localhost
+
+    - name: Save idle baseline locally
+      ansible.builtin.copy:
+        content: "{{ baseline.stdout }}\n"
+        dest: "{{ host_results }}/baseline.log"
+        mode: "0644"
+      delegate_to: localhost
+
+    - name: Extract peak CPU temperature from the sampler log
+      ansible.builtin.shell: |
+        set -o pipefail
+        grep -E '^(Package id [0-9]+|Core [0-9]+):' '{{ host_results }}/sensors.log' \
+          | sed 's/(.*//' | grep -oE '[0-9]+\.[0-9]+' | sort -g | tail -1
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+      register: peak_temp
+      changed_when: false
+
+    - name: Distil results
+      ansible.builtin.set_fact:
+        # metrc data line: ... cpu  <bogo ops> <real> <usr> <sys> <ops/s real> <ops/s cpu>
+        bogo_line: "{{ stress_out.stdout_lines | select('search', 'metrc.*cpu +[0-9]') | list | first | default('') }}"
+        throttle_delta: "{{ throttle_after.stdout | int - throttle_before.stdout | int }}"
+
+    - name: Verify computation correctness under load
+      ansible.builtin.assert:
+        that:
+          - "'failed: 0' in stress_out.stdout"
+          - "'metrics untrustworthy: 0' in stress_out.stdout"
+          - "'successful run completed' in stress_out.stdout"
+        fail_msg: >-
+          stress-ng verification FAILED on {{ inventory_hostname }} — the CPU
+          produced incorrect results under load. Do not trust this machine.
+        success_msg: All computations verified correct.
+
+    - name: Flag thermal throttling
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: {{ throttle_delta }} thermal throttle event(s) during the
+          run on {{ inventory_hostname }} — check fan and heatsink before
+          trusting sustained performance.
+      when: throttle_delta | int > 0
+
+    - name: Burn-in summary
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} ({{ ansible_facts['processor'][2] | default('unknown CPU') }}):
+          {{ bogo_line.split()[-2] | default('?') }} bogo ops/s (real) |
+          peak {{ peak_temp.stdout }}°C |
+          throttle events: {{ throttle_delta }} |
+          logs: {{ host_results }}

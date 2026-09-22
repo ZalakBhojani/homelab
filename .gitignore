@@ -1,0 +1,7 @@
+# real inventory stays local (internal IPs, usernames)
+inventory.ini
+# run outputs (burn-in logs, etc.)
+results/
+*.retry
+# ansible-vault password files — never commit these
+.vault_pass*
