@@ -9,18 +9,19 @@ homelab/
 ├── ansible/                    # host provisioning & one-shot operations
 │   ├── ansible.cfg
 │   ├── inventory.example.ini   # copy to inventory.ini (gitignored)
+│   ├── provision.yml           # baseline: docker + node_exporter roles
+│   ├── deploy-apps.yml         # sync app stacks to hosts, compose up
 │   ├── tpm-luks-unlock.yml
 │   ├── expand-root-lv.yml
 │   ├── cpu-burnin.yml
-│   ├── deploy-apps.yml         # planned: sync app stacks to hosts, compose up
-│   ├── group_vars/             # planned: fleet-wide vars
-│   ├── host_vars/              # planned: per-host app assignment
-│   ├── roles/                  # planned: docker, node_exporter
+│   ├── host_vars.example/      # copy to host_vars/ (gitignored): per-host apps
+│   ├── roles/                  # docker, node_exporter
 │   └── results/                # run outputs (gitignored)
-└── apps/                       # planned: one Docker Compose stack per app
-    ├── pihole/
-    ├── jellyfin/
-    └── monitoring/             # Prometheus + Grafana
+└── apps/                       # one Docker Compose stack per app
+    ├── monitoring/             # Prometheus + Grafana + Uptime Kuma
+    ├── cadvisor/               # container metrics, every host
+    ├── pihole/                 # planned
+    └── jellyfin/               # planned
 ```
 
 The split: `ansible/` describes the *hosts* (disks, TPM, Docker, exporters);
@@ -35,3 +36,7 @@ data in `host_vars/`, not folder structure.
   playbook (TPM LUKS unlock, root LV expansion, CPU burn-in).
 - **[apps/](apps/README.md)** — the per-app compose convention; stacks are
   being built.
+- **[ROADMAP.md](ROADMAP.md)** — the dual-setup goal: homelab apps plus an
+  isolated private cloud (friend VMs) on the same 3 machines.
+- **[DECISION.md](DECISION.md)** — decision records (why Ubuntu + Incus
+  over Proxmox).
