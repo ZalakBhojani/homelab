@@ -1,0 +1,26 @@
+# Rendered by ansible/deploy-apps.yml — targets come from the [homelab]
+# inventory group. Edit this .j2, not the rendered prometheus.yml.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  # Host metrics — node_exporter runs as a systemd service on every host.
+  - job_name: node
+    static_configs:
+      - targets:
+{% for host in groups['homelab'] %}
+          - "{{ host }}:9100"
+{% endfor %}
+
+  # Per-container metrics — the cadvisor app stack on every host.
+  - job_name: cadvisor
+    static_configs:
+      - targets:
+{% for host in groups['homelab'] %}
+          - "{{ host }}:8080"
+{% endfor %}

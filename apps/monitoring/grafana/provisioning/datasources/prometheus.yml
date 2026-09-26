@@ -1,0 +1,19 @@
+# Auto-provisioned so Grafana knows about Prometheus on first boot —
+# no clicking through the datasource wizard.
+apiVersion: 1
+
+# Drop any previously registered datasource of this name before re-adding —
+# needed once because the first deploy created it without a fixed uid, and
+# harmless afterwards (delete of a missing datasource is a no-op).
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # Fixed uid — the provisioned dashboards reference the datasource by it.
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true

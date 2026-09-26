@@ -1,0 +1,11 @@
+# Loads every dashboard JSON in grafana/dashboards/ (mounted read-only in
+# compose.yml). Drop a .json in that folder and redeploy to add a dashboard.
+apiVersion: 1
+
+providers:
+  - name: default
+    type: file
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

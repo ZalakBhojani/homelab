@@ -1,0 +1,21 @@
+# Per-container metrics for Prometheus. Assigned to every host (see
+# ansible/host_vars.example/) — each cadvisor only sees its own host's
+# containers, so one instance per machine.
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    # Read-only mounts over the host's runtime state; privileged is needed
+    # for full disk/network stats on most setups.
+    privileged: true
+    devices:
+      - /dev/kmsg
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
