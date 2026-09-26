@@ -1,0 +1,11 @@
+---
+# Baseline provisioning for every homelab host: Docker (app runtime) and
+# node_exporter (host metrics). Idempotent — safe to re-run any time.
+#
+#   ansible-playbook provision.yml -K
+- name: Provision homelab hosts
+  hosts: homelab
+  become: true
+  roles:
+    - docker
+    - node_exporter

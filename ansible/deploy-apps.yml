@@ -1,0 +1,32 @@
+---
+# Deploy app stacks to their assigned hosts. Which host runs which app is
+# data: the `apps` list in host_vars/<host>.yml (gitignored; see
+# host_vars.example/). For each app in the list this playbook:
+#
+#   1. syncs apps/<name>/ to /opt/apps/<name>/ on the host (a local .env
+#      next to the compose file rides along — real .env files stay out of
+#      git but are deployed),
+#   2. renders any top-level *.j2 in the app folder against the inventory
+#      (e.g. Prometheus scrape targets come from the [homelab] group — the
+#      inventory is the service registry, no Consul needed),
+#   3. runs `docker compose up -d`.
+#
+#   ansible-playbook deploy-apps.yml -K
+#   ansible-playbook deploy-apps.yml -K --limit 192.168.1.10
+- name: Deploy app stacks
+  hosts: homelab
+  become: true
+  vars:
+    apps_root: /opt/apps
+  tasks:
+    - name: Ensure apps root exists
+      ansible.builtin.file:
+        path: "{{ apps_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Deploy each assigned app
+      ansible.builtin.include_tasks: tasks/deploy-app.yml
+      loop: "{{ apps | default([]) }}"
+      loop_control:
+        loop_var: app

@@ -7,11 +7,50 @@ run from this directory.
 
 ```bash
 cp inventory.example.ini inventory.ini   # then fill in your hosts
+cp -r host_vars.example host_vars        # rename files to your hostnames,
+                                         # edit each host's app list
 ```
 
-`inventory.ini` is gitignored (it holds internal IPs and usernames), as is
-`results/`. Playbooks never store secrets — the LUKS passphrase and sudo
-password are prompted at runtime.
+`inventory.ini` and `host_vars/` are gitignored (they hold internal IPs and
+usernames), as is `results/`. Playbooks never store secrets — the LUKS
+passphrase is prompted at runtime, and the sudo password comes from the
+macOS Keychain via `become-pass.sh` (an executable `become_password_file`;
+Ansible uses its stdout). One-time setup on the controller:
+
+```bash
+security add-generic-password -s homelab-become -a zalak -w
+```
+
+No NOPASSWD anywhere — the hosts still require the sudo password; it's
+just supplied from the Keychain instead of typed per run. Passing `-K`
+still overrides it when you want an interactive prompt.
+
+## provision.yml
+
+Baseline for every host: Docker + Compose (app runtime) and
+`prometheus-node-exporter` as a native systemd service on :9100 — native,
+not a container, so host metrics keep flowing even when Docker is down.
+Idempotent; run it whenever a new host joins the fleet.
+
+```bash
+ansible-playbook provision.yml -K
+```
+
+## deploy-apps.yml
+
+Deploys the compose stacks in `../apps/` to their assigned hosts. Assignment
+is the `apps:` list in `host_vars/<host>.yml`. Per app it syncs the folder
+to `/opt/apps/<name>/` (a local `.env` next to the compose file rides
+along), renders any top-level `*.j2` against the inventory (e.g. Prometheus
+scrape targets are generated from the `[homelab]` group), then
+`docker compose up -d`.
+
+```bash
+ansible-playbook deploy-apps.yml -K
+ansible-playbook deploy-apps.yml -K --limit 192.168.1.10   # one host
+```
+
+Re-running is safe: compose only restarts services whose config changed.
 
 ## tpm-luks-unlock.yml
 

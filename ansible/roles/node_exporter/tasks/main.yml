@@ -1,0 +1,14 @@
+---
+# Host metrics as a native systemd service, NOT a container — the exporter
+# must keep reporting even when Docker itself is down. Listens on :9100.
+- name: Install node exporter
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+    update_cache: true
+
+- name: Ensure node exporter is running and enabled
+  ansible.builtin.service:
+    name: prometheus-node-exporter
+    state: started
+    enabled: true

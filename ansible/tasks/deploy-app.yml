@@ -1,0 +1,20 @@
+---
+- name: "{{ app }} — sync stack folder"
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../apps/{{ app }}/"
+    dest: "/opt/apps/{{ app }}/"
+    mode: preserve
+
+- name: "{{ app }} — render templates against the inventory"
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/opt/apps/{{ app }}/{{ item | basename | regex_replace('\\.j2$', '') }}"
+    mode: "0644"
+  loop: "{{ query('ansible.builtin.fileglob', playbook_dir + '/../apps/' + app + '/*.j2') }}"
+
+- name: "{{ app }} — docker compose up"
+  ansible.builtin.command:
+    cmd: docker compose up -d --remove-orphans
+    chdir: "/opt/apps/{{ app }}"
+  register: compose_result
+  changed_when: "'Started' in compose_result.stderr or 'Created' in compose_result.stderr or 'Recreated' in compose_result.stderr"

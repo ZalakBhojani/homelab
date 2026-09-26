@@ -1,0 +1,5 @@
+# Copy host_vars.example/ to host_vars/ (gitignored), rename the files to
+# match your inventory hostnames, and edit the app lists.
+apps:
+  - monitoring
+  - cadvisor

@@ -1,0 +1,22 @@
+---
+# Docker Engine + Compose v2 from the Ubuntu archive — no third-party apt
+# repo to maintain, and new enough for compose stacks on 26.04.
+- name: Install Docker and Compose
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose-v2
+    state: present
+    update_cache: true
+
+- name: Ensure Docker is running and enabled
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Add {{ ansible_user }} to the docker group
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true

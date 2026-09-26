@@ -1,5 +1,9 @@
 # real inventory stays local (internal IPs, usernames)
 inventory.ini
+# per-host app assignment — copy from host_vars.example/ (filenames are IPs)
+host_vars/
+# app secrets — copy from each app's .env.example
+.env
 # run outputs (burn-in logs, etc.)
 results/
 *.retry
