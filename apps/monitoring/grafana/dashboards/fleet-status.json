@@ -1,0 +1,188 @@
+{
+ "uid": "fleet-status",
+ "title": "Fleet Status",
+ "tags": ["public"],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": { "from": "now-24h", "to": "now" },
+ "panels": [
+  {
+   "id": 1,
+   "type": "stat",
+   "title": "Host status (now)",
+   "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+   "datasource": { "type": "prometheus", "uid": "prometheus" },
+   "fieldConfig": {
+    "defaults": {
+     "mappings": [
+      {
+       "type": "value",
+       "options": {
+        "0": { "text": "DOWN", "color": "red" },
+        "1": { "text": "UP", "color": "green" }
+       }
+      }
+     ],
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       { "color": "red", "value": null },
+       { "color": "green", "value": 1 }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "center",
+    "textMode": "value_and_name",
+    "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "up{job=\"node\"}",
+     "legendFormat": "{{instance}}",
+     "instant": true,
+     "range": false,
+     "datasource": { "type": "prometheus", "uid": "prometheus" }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "Host uptime",
+   "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
+   "datasource": { "type": "prometheus", "uid": "prometheus" },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "decimals": 1,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [{ "color": "blue", "value": null }]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "center",
+    "textMode": "value_and_name",
+    "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "node_time_seconds - node_boot_time_seconds",
+     "legendFormat": "{{instance}}",
+     "instant": true,
+     "range": false,
+     "datasource": { "type": "prometheus", "uid": "prometheus" }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Availability (24 h)",
+   "gridPos": { "x": 16, "y": 0, "w": 8, "h": 6 },
+   "datasource": { "type": "prometheus", "uid": "prometheus" },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "decimals": 2,
+     "max": 100,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       { "color": "red", "value": null },
+       { "color": "orange", "value": 95 },
+       { "color": "green", "value": 99 }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "value",
+    "graphMode": "none",
+    "justifyMode": "center",
+    "textMode": "value_and_name",
+    "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "100 * avg_over_time(up{job=\"node\"}[24h])",
+     "legendFormat": "{{instance}}",
+     "instant": true,
+     "range": false,
+     "datasource": { "type": "prometheus", "uid": "prometheus" }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "timeseries",
+   "title": "CPU busy %",
+   "gridPos": { "x": 0, "y": 6, "w": 12, "h": 9 },
+   "datasource": { "type": "prometheus", "uid": "prometheus" },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "min": 0,
+     "max": 100,
+     "custom": { "fillOpacity": 8, "lineWidth": 1.5, "showPoints": "never" }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": { "displayMode": "list", "placement": "bottom" },
+    "tooltip": { "mode": "multi" }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "100 * (1 - avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
+     "legendFormat": "{{instance}}",
+     "datasource": { "type": "prometheus", "uid": "prometheus" }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "Memory used %",
+   "gridPos": { "x": 12, "y": 6, "w": 12, "h": 9 },
+   "datasource": { "type": "prometheus", "uid": "prometheus" },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "min": 0,
+     "max": 100,
+     "custom": { "fillOpacity": 8, "lineWidth": 1.5, "showPoints": "never" }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": { "displayMode": "list", "placement": "bottom" },
+    "tooltip": { "mode": "multi" }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+     "legendFormat": "{{instance}}",
+     "datasource": { "type": "prometheus", "uid": "prometheus" }
+    }
+   ]
+  }
+ ]
+}

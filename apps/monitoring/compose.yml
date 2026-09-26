@@ -23,6 +23,9 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in .env}
+      # Lets individual dashboards be shared at a tokenized no-login URL
+      # (Share → Public dashboard). Everything else stays behind login.
+      GF_PUBLIC_DASHBOARDS_ENABLED: "true"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
