@@ -10,17 +10,22 @@ scrape_configs:
           - localhost:9090
 
   # Host metrics — node_exporter runs as a systemd service on every host.
+  # Each target carries a `node` display label (host_vars node_name) so
+  # dashboards can show a hostname instead of the scrape address; target
+  # labels survive on `up` even while the host is down.
   - job_name: node
     static_configs:
-      - targets:
 {% for host in groups['homelab'] %}
-          - "{{ host }}:9100"
+      - targets: ["{{ host }}:9100"]
+        labels:
+          node: "{{ hostvars[host].node_name | default(host) }}"
 {% endfor %}
 
   # Per-container metrics — the cadvisor app stack on every host.
   - job_name: cadvisor
     static_configs:
-      - targets:
 {% for host in groups['homelab'] %}
-          - "{{ host }}:8080"
+      - targets: ["{{ host }}:8080"]
+        labels:
+          node: "{{ hostvars[host].node_name | default(host) }}"
 {% endfor %}
