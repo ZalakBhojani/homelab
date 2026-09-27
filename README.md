@@ -40,3 +40,6 @@ data in `host_vars/`, not folder structure.
   isolated private cloud (friend VMs) on the same 3 machines.
 - **[DECISION.md](DECISION.md)** — decision records (why Ubuntu + Incus
   over Proxmox).
+- **[docs/architecture.md](docs/architecture.md)** — monitoring
+  architecture: core diagram, scrape/query sequence, private vs public
+  access paths.
