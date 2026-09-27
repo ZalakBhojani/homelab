@@ -89,6 +89,17 @@
    ],
    "transformations": [
     {
+     "id": "filterFieldsByName",
+     "options": {
+      "include": {
+       "names": [
+        "node",
+        "Value"
+       ]
+      }
+     }
+    },
+    {
      "id": "sortBy",
      "options": {
       "fields": {},
@@ -160,6 +171,17 @@
     }
    ],
    "transformations": [
+    {
+     "id": "filterFieldsByName",
+     "options": {
+      "include": {
+       "names": [
+        "node",
+        "Value"
+       ]
+      }
+     }
+    },
     {
      "id": "sortBy",
      "options": {
@@ -241,6 +263,17 @@
     }
    ],
    "transformations": [
+    {
+     "id": "filterFieldsByName",
+     "options": {
+      "include": {
+       "names": [
+        "node",
+        "Value"
+       ]
+      }
+     }
+    },
     {
      "id": "sortBy",
      "options": {
