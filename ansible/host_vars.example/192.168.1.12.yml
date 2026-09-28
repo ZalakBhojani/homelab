@@ -1,2 +1,14 @@
+# Copy host_vars.example/ to host_vars/ (gitignored), rename the files to
+# match your inventory hostnames, and edit the app lists.
+
+# Display name attached to this host's metrics (Prometheus `node` label);
+# dashboards show it instead of the raw scrape address.
+node_name: node-c
+
 apps:
   - cadvisor
+
+# Private Healthchecks.io ping URL for this host's dead-man's-switch
+# heartbeat (see ansible/roles/heartbeat). Keep it secret — anyone holding
+# it can fake "up". Omit the variable to skip the heartbeat entirely.
+# heartbeat_url: https://hc-ping.com/your-check-uuid
