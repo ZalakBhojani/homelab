@@ -1,6 +1,7 @@
 ---
-# Baseline provisioning for every homelab host: Docker (app runtime) and
-# node_exporter (host metrics). Idempotent — safe to re-run any time.
+# Baseline provisioning for every homelab host: Docker (app runtime),
+# node_exporter (host metrics), and the status heartbeat (dead-man's
+# switch). Idempotent — safe to re-run any time.
 #
 #   ansible-playbook provision.yml -K
 - name: Provision homelab hosts
@@ -9,3 +10,4 @@
   roles:
     - docker
     - node_exporter
+    - heartbeat

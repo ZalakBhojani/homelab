@@ -1,0 +1,51 @@
+---
+# Dead-man's-switch heartbeat — every minute each host curls its private
+# Healthchecks.io ping URL (outbound only, nothing listens). If pings stop,
+# the check flips to down and the public status page shows it — including
+# a full-fleet power loss, which an on-fleet status page can't report
+# (DECISION.md #3). The URL is a secret (anyone holding it can fake "up");
+# it lives in gitignored host_vars as `heartbeat_url`. Hosts without one
+# skip this role.
+- name: Install heartbeat ping units
+  when: heartbeat_url is defined
+  block:
+    - name: Ensure curl is present
+      ansible.builtin.apt:
+        name: curl
+        state: present
+
+    - name: Install heartbeat service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/heartbeat-ping.service
+        mode: "0600"
+        content: |
+          [Unit]
+          Description=Dead-man's-switch ping to the status service
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/curl -fsS -m 10 --retry 2 -o /dev/null {{ heartbeat_url }}
+
+    - name: Install heartbeat timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/heartbeat-ping.timer
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Run the status heartbeat every minute
+
+          [Timer]
+          OnCalendar=minutely
+          RandomizedDelaySec=5
+
+          [Install]
+          WantedBy=timers.target
+
+    - name: Enable and start the heartbeat timer
+      ansible.builtin.systemd_service:
+        name: heartbeat-ping.timer
+        enabled: true
+        state: started
+        daemon_reload: true

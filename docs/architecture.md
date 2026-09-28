@@ -81,38 +81,51 @@ sequenceDiagram
 ## Access paths: private vs public
 
 The pipeline above is shared; what differs per audience is the way in.
-Grafana's *public dashboards* feature exposes exactly one dashboard
-(Fleet Status, public-safe content only) at a tokenized no-login URL;
-everything else stays behind login.
+Grafana (including the tokenized no-login Fleet Status URL) stays
+LAN-only. The world-facing view is deliberately **off-fleet**
+([../DECISION.md](../DECISION.md) #3): a status page must not share fate
+with the thing it reports on — during a full-fleet power loss an
+on-fleet page is unreachable, not red.
 
 ```mermaid
 flowchart LR
   you["LAN user (you)"]
-  world["public viewer<br/>(anyone with the link)"]
+  world["public viewer<br/>(anyone)"]
+  nodes["node-1..3"]
 
-  subgraph g["Grafana · monitoring host"]
+  subgraph g["Grafana · monitoring host (LAN only)"]
     private["all dashboards + admin<br/>(login required)"]
-    fleet["Fleet Status only<br/>/public-dashboards/&lt;token&gt;<br/>(no login)"]
+    fleet["Fleet Status<br/>/public-dashboards/&lt;token&gt;<br/>(no login)"]
   end
 
-  tunnel["internet tunnel — planned<br/>(Cloudflare Tunnel or Tailscale Funnel,<br/>decision open)"]
+  subgraph off["off-fleet"]
+    hc["Healthchecks.io<br/>one check per host"]
+    status["portfolio /status page<br/>(GitHub Pages)"]
+  end
 
   you -->|"LAN · credentials"| private
   you -->|"LAN · no credentials"| fleet
-  world -.->|HTTPS| tunnel
-  tunnel -.->|"public paths only ·<br/>rate-limited"| fleet
+  nodes -->|"outbound ping · 1 min<br/>(heartbeat role)"| hc
+  status -->|"public JSON badges"| hc
+  world -->|HTTPS| status
 ```
 
 Rules for the public path:
 
-- Fleet Status carries only public-appropriate data: host up/down, uptime,
-  24 h availability, CPU/memory %. Queries filter on `node!=""` and label
-  hosts by `node_name`, never by scrape address.
-- The share token can be revoked any time (Share → Public dashboard).
-- The planned tunnel must expose only `/public-dashboards/*`,
-  `/api/public/*` and static assets — the login page never faces the
-  internet. Tunnel choice is an open decision; record it in
-  [../DECISION.md](../DECISION.md) when made.
+- Nothing inbound is exposed: hosts *push* heartbeats outward; the status
+  page and its truth source are both hosted off-fleet, so a fleet-wide
+  outage renders as red rows, not a dead link.
+- Two kinds of Healthchecks URLs, never confused: **ping URLs are
+  secrets** (anyone holding one can fake "up") and live in gitignored
+  `host_vars/`; **badge URLs are public read-only** (revocable keys) and
+  may be committed to the portfolio repo.
+- Fleet Status keeps carrying only public-appropriate data (up/down,
+  uptime, availability, CPU/memory %) so it *could* be exposed later, but
+  today it is LAN-only; its share token can be revoked any time.
+- Internet tunnels are deferred until an app genuinely needs inbound
+  traffic (e.g. Jellyfin away from home). When that day comes: tunnel →
+  nginx path-allowlist gate → app, so no login page ever faces the
+  internet.
 
 ## Endpoints
 
@@ -129,8 +142,10 @@ Rules for the public path:
 - **Single point of failure:** Prometheus, Grafana and Uptime Kuma all run
   on one host. Accepted for now — the stack is code, so re-assigning it in
   `host_vars` and re-running `deploy-apps.yml` rebuilds it elsewhere in
-  minutes; only TSDB history is lost. Planned: off-fleet dead-man's
-  switch, then a duplicate Prometheus on a second host.
+  minutes; only TSDB history is lost. The off-fleet dead-man's switch
+  (heartbeat role + Healthchecks.io) covers *knowing about* an outage;
+  still planned: a duplicate Prometheus on a second host for metrics
+  continuity.
 - **Private-cloud plane:** when the Incus cluster lands (see
   [../ROADMAP.md](../ROADMAP.md)), its metrics endpoint becomes one more
   scrape job — per-VM metrics with no agents inside guest VMs and no holes

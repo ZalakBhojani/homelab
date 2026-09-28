@@ -2,6 +2,53 @@
 
 Decision records for choices that shape the fleet. Newest first.
 
+## 3. Public status page: off-fleet heartbeats, not a tunnel to Grafana
+
+**Date:** 2026-09-28 · **Status:** accepted
+
+### Context
+
+Goal: a no-login page where anyone can see whether the fleet is up. The
+first plan was to expose Grafana's public Fleet Status dashboard through
+a tunnel. The 2026-09-28 power cut exposed the flaw in that plan:
+everything Grafana lives on one node, so exactly when things go down, the
+page becomes *unreachable* instead of showing red. A status page must not
+share fate with the thing it reports on.
+
+### Options considered
+
+**A. Cloudflare Tunnel → Grafana public dashboard** — nicest URL, edge
+WAF and rate limiting before traffic reaches the LAN. Needs a paid domain
+(~$10/yr), and the page still dies with the monitoring host.
+
+**B. Tailscale Funnel + self-hosted nginx gate** — $0, no domain; path
+allowlist and per-IP rate limiting run in our own nginx keyed on
+`X-Forwarded-For` (funnel relays are blind pipes — TLS terminates on our
+node, so all filtering is on-box, after our uplink). Same fate-sharing
+flaw.
+
+**C. Grafana Cloud remote_write** — rich dashboards hosted off-fleet;
+survives outages (and the gap-aware availability formula would correctly
+drop during one). Metrics leave the network, provisioning-as-code is
+clunkier against a cloud instance, free-tier series caps need managing.
+
+**D. Healthchecks.io heartbeats + status page on the portfolio site
+(chosen)** — every host curls its private ping URL once a minute
+(`heartbeat` role, outbound only); a `/status` page on the portfolio
+(GitHub Pages — third-party hosted, survives lab outages) renders live
+state from Healthchecks' public read-only JSON badges. Zero inbound
+exposure: no tunnel, no domain, no WAF needed. Free tier (20 checks)
+leaves ~15 spare — one check per friend VM when the private cloud lands.
+
+### Decision
+
+Option D. Up/down truth and its public rendering both live off-fleet, so
+a full-fleet blackout renders as red rows, not a dead link. The rich
+Grafana dashboards (including the tokenized public Fleet Status URL) stay
+LAN-only — they're for us, not the public. Internet tunnels are deferred
+until an app genuinely needs inbound traffic (e.g. Jellyfin away from
+home); option B's nginx-gate design is the template for that day.
+
 ## 2. Homelab app runtime: Docker Compose; daemon on the host for now
 
 **Date:** 2026-09-26 · **Status:** accepted (daemon placement deliberately

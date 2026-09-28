@@ -8,3 +8,8 @@ node_name: node-a
 apps:
   - monitoring
   - cadvisor
+
+# Private Healthchecks.io ping URL for this host's dead-man's-switch
+# heartbeat (see ansible/roles/heartbeat). Keep it secret — anyone holding
+# it can fake "up". Omit the variable to skip the heartbeat entirely.
+# heartbeat_url: https://hc-ping.com/your-check-uuid

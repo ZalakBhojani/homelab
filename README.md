@@ -15,7 +15,7 @@ homelab/
 │   ├── expand-root-lv.yml
 │   ├── cpu-burnin.yml
 │   ├── host_vars.example/      # copy to host_vars/ (gitignored): per-host apps
-│   ├── roles/                  # docker, node_exporter
+│   ├── roles/                  # docker, node_exporter, heartbeat
 │   └── results/                # run outputs (gitignored)
 └── apps/                       # one Docker Compose stack per app
     ├── monitoring/             # Prometheus + Grafana + Uptime Kuma
