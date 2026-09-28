@@ -251,7 +251,7 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "100 * avg_over_time(up{job=\"node\", node!=\"\"}[24h])",
+     "expr": "clamp_max(100 * sum_over_time(up{job=\"node\", node!=\"\"}[24h]) / (24 * 3600 / 15), 100)",
      "legendFormat": "{{node}}",
      "instant": true,
      "range": false,

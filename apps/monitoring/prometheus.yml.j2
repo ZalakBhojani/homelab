@@ -1,6 +1,9 @@
 # Rendered by ansible/deploy-apps.yml — targets come from the [homelab]
 # inventory group. Edit this .j2, not the rendered prometheus.yml.
 global:
+  # The Fleet Status availability panel divides by expected samples
+  # (24h / 15s) so Prometheus's own downtime counts as host downtime —
+  # keep its formula in sync if this interval changes.
   scrape_interval: 15s
 
 scrape_configs:
